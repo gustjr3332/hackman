@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AUTH_EXPIRED_EVENT,
+  deleteMyAccount,
   fetchContests,
   fetchMe,
   getStoredUsername,
   logout,
+  onOAuthSignedIn,
   onPasswordRecovery,
   onStoredUsernameChange,
   storeUsername,
@@ -131,6 +133,22 @@ export default function App() {
     setStatus('');
     setShowAuth(false);
     loadContests();
+  }
+
+  const handleLoggedInRef = useRef(handleLoggedIn);
+  handleLoggedInRef.current = handleLoggedIn;
+  useEffect(() => onOAuthSignedIn((name) => handleLoggedInRef.current(name)), []);
+
+  async function handleDeleteAccount() {
+    if (!window.confirm('탈퇴하면 계정·프로필·팀 참가 기록이 바로 삭제되고 되돌릴 수 없습니다. 탈퇴할까요?')) return;
+    try {
+      await deleteMyAccount();
+      setUsername(null);
+      setStatus('탈퇴가 완료되었습니다.');
+      loadContests();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : '탈퇴에 실패했습니다');
+    }
   }
 
   // ContestDetail 의 폴링 콜백으로도 쓰이므로 참조가 안정적이어야 한다 (useCallback).
@@ -395,6 +413,17 @@ export default function App() {
 
       <footer className="site-footer">
         <p id="sync-status">{status}</p>
+        <nav className="legal-links">
+          <a href="/terms.html">이용약관</a>
+          <a href="/privacy.html">
+            <strong>개인정보처리방침</strong>
+          </a>
+          {username && (
+            <button type="button" className="link-btn" onClick={handleDeleteAccount}>
+              회원 탈퇴
+            </button>
+          )}
+        </nav>
       </footer>
     </>
   );

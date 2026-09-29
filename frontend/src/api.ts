@@ -152,6 +152,43 @@ export async function requestPasswordReset(email: string): Promise<void> {
   if (error) throw new ApiError(error.message);
 }
 
+// 소셜 로그인으로 떠났다가 돌아온 경우만 표시한다. 비밀번호 로그인·재설정 링크의 세션 이벤트와 구분하려는 것.
+const OAUTH_PENDING_KEY = 'hackman_oauth_pending';
+
+export async function signInWithProvider(provider: 'google' | 'github'): Promise<void> {
+  sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: SITE_URL } });
+  if (error) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    throw new ApiError(error.message);
+  }
+}
+
+/** 소셜 로그인에서 돌아와 세션이 생기면 아이디를 받아 handler 에 넘긴다. */
+export function onOAuthSignedIn(handler: (username: string) => void): () => void {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    if (!session || !sessionStorage.getItem(OAUTH_PENDING_KEY)) return;
+    if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    // 콜백 안에서 supabase 를 바로 await 하면 auth 잠금에 걸린다(supabase-js 알려진 동작).
+    setTimeout(() =>
+      fetchMe()
+        .then((me) => {
+          storeUsername(me.username);
+          handler(me.username);
+        })
+        .catch(() => {})
+    );
+  });
+  return () => data.subscription.unsubscribe();
+}
+
+export async function deleteMyAccount(): Promise<void> {
+  await must(supabase.rpc('delete_my_account'));
+  localStorage.removeItem(USERNAME_KEY);
+  await supabase.auth.signOut({ scope: 'local' });
+}
+
 export function onPasswordRecovery(handler: () => void): () => void {
   const { data } = supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') handler();

@@ -486,6 +486,34 @@ body {
   font-weight: 500;
 }
 
+.social-login {
+  display: grid;
+  gap: 8px;
+}
+
+.social-login button {
+  min-height: 44px;
+  padding: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+.auth-footnote a,
+.legal-links a {
+  color: inherit;
+}
+
+.legal-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .auth-panel button[type='submit']:disabled {
   opacity: 0.5;
   cursor: not-allowed;

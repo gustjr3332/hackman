@@ -29,7 +29,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          if (res.ok) {
+          // privacy.html 같은 정적 문서는 앱 껍데기가 아니므로 보관하지 않는다.
+          if (res.ok && !url.pathname.endsWith('.html')) {
             const copy = res.clone();
             event.waitUntil(saveShell(copy));
           }

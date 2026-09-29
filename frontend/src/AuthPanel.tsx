@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { login, register, requestPasswordReset, setNewPassword } from './api';
+import { login, register, requestPasswordReset, setNewPassword, signInWithProvider } from './api';
 
 interface AuthPanelProps {
   onLoggedIn: (username: string) => void;
@@ -50,6 +50,17 @@ export function AuthPanel({ onLoggedIn }: AuthPanelProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : '요청에 실패했습니다');
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSocial(provider: 'google' | 'github') {
+    setError('');
+    setBusy(true);
+    try {
+      await signInWithProvider(provider);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '소셜 로그인에 실패했습니다');
       setBusy(false);
     }
   }
@@ -113,6 +124,25 @@ export function AuthPanel({ onLoggedIn }: AuthPanelProps) {
       <button type="submit" disabled={!canSubmit}>
         {busy ? '확인 중…' : isReset ? '재설정 메일 보내기' : isRegister ? '가입하고 시작하기' : '로그인'}
       </button>
+
+      {!isReset && (
+        <div className="social-login">
+          <button type="button" onClick={() => handleSocial('google')} disabled={busy}>
+            Google로 계속하기
+          </button>
+          <button type="button" onClick={() => handleSocial('github')} disabled={busy}>
+            GitHub로 계속하기
+          </button>
+        </div>
+      )}
+
+      {!isReset && (
+        <p className="auth-footnote">
+          가입하거나 소셜 계정으로 계속하면 <a href="/terms.html">이용약관</a>과{' '}
+          <a href="/privacy.html">개인정보처리방침</a>에 동의하는 것으로 봅니다. 만 14세 이상만 가입할 수
+          있습니다.
+        </p>
+      )}
 
       {mode === 'login' && (
         <button type="button" className="link-btn" onClick={() => switchMode('reset')}>
