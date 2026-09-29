@@ -1493,7 +1493,7 @@ body {
 
 @media (max-width: 640px) {
   .github-panel-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .github-tree {
@@ -2799,7 +2799,7 @@ button.crumb:hover {
   .contest-list,
   .tile-grid,
   .project-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
