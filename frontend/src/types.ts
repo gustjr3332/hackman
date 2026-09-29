@@ -22,6 +22,7 @@ export interface ContestInput {
   description: string;
   start_at: string;
   end_at: string;
+  in_sitemap: boolean;
 }
 
 export interface Participant {

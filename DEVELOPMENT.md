@@ -9,7 +9,7 @@
 어떤 기능이 어떤 문제를 풀어 주는지를 실제 코드 위치와 함께 적는다.
 
 - 프로덕션: https://ugrooqkeyhgldrtdriba.supabase.co (Postgres + Edge Functions)
-- 프론트엔드(범위 밖): https://hackman-sju.vercel.app/
+- 프론트엔드(범위 밖): https://hackman.kr/
 - 옛 Django 백엔드(`backend/`) 코드는 2026-09-19에 저장소에서 제거했다. Render 서비스도
   2026-09-23에 삭제 완료. Django 테이블 백업/drop만 아직 남아 있다(10장).
 

@@ -37,6 +37,7 @@ export function ContestForm({ onCreated, onCancel }: ContestFormProps) {
   const [description, setDescription] = useState('');
   const [startAt, setStartAt] = useState(toLocalInputValue(defaultStart));
   const [endAt, setEndAt] = useState(toLocalInputValue(defaultEnd));
+  const [inSitemap, setInSitemap] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -60,6 +61,7 @@ export function ContestForm({ onCreated, onCancel }: ContestFormProps) {
         description,
         start_at: new Date(startAt).toISOString(),
         end_at: new Date(endAt).toISOString(),
+        in_sitemap: inSitemap,
       });
       onCreated(contest);
     } catch (err) {
@@ -132,6 +134,14 @@ export function ContestForm({ onCreated, onCancel }: ContestFormProps) {
           placeholder="참가 대상, 일정, 심사 기준 등"
           rows={3}
         />
+      </label>
+
+      <label className="field">
+        <span>
+          <input type="checkbox" checked={inSitemap} onChange={(e) => setInSitemap(e.target.checked)} /> 검색엔진 sitemap에
+          추가
+        </span>
+        <small>구글 등에 이 대회 페이지를 알립니다. 공개 대회만 체크하세요.</small>
       </label>
 
       {error && <p className="form-error">{error}</p>}
