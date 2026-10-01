@@ -501,6 +501,17 @@ body {
   cursor: pointer;
   font-family: var(--font-ui);
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* 카카오는 브랜드 노랑 고정(다크 모드 포함). 구글·깃헙은 테마 색을 따른다. */
+.social-login .social-kakao {
+  background: #fee500;
+  color: #191919;
+  border-color: #fee500;
 }
 
 .auth-footnote a,

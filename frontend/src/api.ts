@@ -112,52 +112,25 @@ supabase.auth.onAuthStateChange((event) => {
   }
 });
 
-export async function register(username: string, email: string, password: string): Promise<void> {
-  const { error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
-  if (!error) return;
-  // 가입 트리거가 프로필을 못 만들면(아이디 중복·형식) Auth 는 이 문구만 돌려준다.
-  if (/database error saving new user/i.test(error.message)) {
-    throw new ApiError('이미 쓰는 아이디이거나 형식이 맞지 않습니다 (영문·숫자·_ . @ + - 만).');
-  }
-  if (/already registered/i.test(error.message)) throw new ApiError('이미 가입한 이메일입니다.');
-  throw new ApiError(error.message);
-}
-
-/** 아이디 또는 이메일로 로그인하고 아이디를 돌려준다. 아이디→이메일 조회는 서버(Edge Function)
- * 안에서만 하고 클라이언트로는 절대 넘어오지 않는다 — 자세한 이유는 그 함수 주석 참고. */
-export async function login(identifier: string, password: string): Promise<string> {
-  const { access_token, refresh_token } = await callFunction<{ access_token: string; refresh_token: string }>(
-    'login',
-    { identifier, password }
-  );
-  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-  if (error) throw new ApiError(error.message);
-  const me = await fetchMe();
-  storeUsername(me.username);
-  return me.username;
-}
-
 export async function logout() {
   localStorage.removeItem(USERNAME_KEY);
   await supabase.auth.signOut();
 }
 
-// 메일 링크가 돌아올 웹 주소. iOS 앱(Capacitor) 안에서는 origin 이 capacitor://localhost 라
-// 메일 링크로 쓸 수 없으므로, 앱 빌드에는 VITE_SITE_URL 로 실제 웹 주소를 넣는다.
+// 소셜 로그인이 돌아올 웹 주소. iOS 앱(Capacitor) 안에서는 origin 이 capacitor://localhost 라
+// 쓸 수 없으므로, 앱 빌드에는 VITE_SITE_URL 로 실제 웹 주소를 넣는다.
 const SITE_URL = import.meta.env.VITE_SITE_URL || window.location.origin;
 
-/** 비밀번호 재설정 메일. 메일의 링크로 돌아오면 onPasswordRecovery 가 불린다. */
-export async function requestPasswordReset(email: string): Promise<void> {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: SITE_URL });
-  if (error) throw new ApiError(error.message);
-}
-
-// 소셜 로그인으로 떠났다가 돌아온 경우만 표시한다. 비밀번호 로그인·재설정 링크의 세션 이벤트와 구분하려는 것.
+// 소셜 로그인으로 떠났다가 돌아온 경우만 표시한다. 다른 세션 이벤트와 구분하려는 것.
 const OAUTH_PENDING_KEY = 'hackman_oauth_pending';
 
-export async function signInWithProvider(provider: 'google' | 'github'): Promise<void> {
+export type SocialProvider = 'google' | 'github' | 'kakao';
+
+export async function signInWithProvider(provider: SocialProvider): Promise<void> {
   sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
-  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: SITE_URL } });
+  // 카카오는 이메일 동의항목이 심사 대상이라 닉네임·프로필만 요청한다 (이메일 없는 가입자도 트리거가 처리).
+  const scopes = provider === 'kakao' ? 'profile_nickname profile_image' : undefined;
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: SITE_URL, scopes } });
   if (error) {
     sessionStorage.removeItem(OAUTH_PENDING_KEY);
     throw new ApiError(error.message);
@@ -187,21 +160,6 @@ export async function deleteMyAccount(): Promise<void> {
   await must(supabase.rpc('delete_my_account'));
   localStorage.removeItem(USERNAME_KEY);
   await supabase.auth.signOut({ scope: 'local' });
-}
-
-export function onPasswordRecovery(handler: () => void): () => void {
-  const { data } = supabase.auth.onAuthStateChange((event) => {
-    if (event === 'PASSWORD_RECOVERY') handler();
-  });
-  return () => data.subscription.unsubscribe();
-}
-
-export async function setNewPassword(password: string): Promise<string> {
-  const { error } = await supabase.auth.updateUser({ password });
-  if (error) throw new ApiError(error.message);
-  const me = await fetchMe();
-  storeUsername(me.username);
-  return me.username;
 }
 
 export async function fetchMe(): Promise<Me> {

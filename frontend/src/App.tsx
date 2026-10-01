@@ -7,11 +7,10 @@ import {
   getStoredUsername,
   logout,
   onOAuthSignedIn,
-  onPasswordRecovery,
   onStoredUsernameChange,
   storeUsername,
 } from './api';
-import { AuthPanel, NewPasswordPanel } from './AuthPanel';
+import { AuthPanel } from './AuthPanel';
 import { ContestDetail } from './ContestDetail';
 import { ContestForm } from './ContestForm';
 import { Gallery } from './Gallery';
@@ -35,7 +34,6 @@ export default function App() {
   // 로그인 폼은 기본으로 접혀 있다. 대회는 로그인 없이도 다 둘러볼 수 있어서 헤더의
   // "로그인" 버튼을 눌렀을 때만 편다.
   const [showAuth, setShowAuth] = useState(false);
-  const [recovering, setRecovering] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
 
   // 상세 화면은 항상 최신 목록의 대회 객체를 본다 (상태 전이 후에도 동기화 유지).
@@ -69,9 +67,6 @@ export default function App() {
       window.removeEventListener('online', goOnline);
     };
   }, [loadContests]);
-
-  // 재설정 메일의 링크로 돌아오면 새 비밀번호를 정하게 한다.
-  useEffect(() => onPasswordRecovery(() => setRecovering(true)), []);
 
   useEffect(() => {
     const handleExpired = () => {
@@ -299,17 +294,8 @@ export default function App() {
       )}
 
       <main className="main-content">
-        {recovering && (
-          <NewPasswordPanel
-            onDone={(name) => {
-              setRecovering(false);
-              handleLoggedIn(name);
-            }}
-          />
-        )}
-
         {/* 대회 목록·상세·스코어보드는 로그인 없이 다 보인다. 로그인 폼은 헤더 버튼으로만 편다. */}
-        {!username && showAuth && <AuthPanel onLoggedIn={handleLoggedIn} />}
+        {!username && showAuth && <AuthPanel />}
 
         {selected && route.name === 'gallery' ? (
           <Gallery contest={selected} isOrganizer={isOrganizer} />

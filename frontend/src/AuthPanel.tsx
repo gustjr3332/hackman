@@ -1,60 +1,46 @@
-import { useState } from 'react';
-import { login, register, requestPasswordReset, setNewPassword, signInWithProvider } from './api';
+import { useState, type ReactNode } from 'react';
+import { signInWithProvider, type SocialProvider } from './api';
 
-interface AuthPanelProps {
-  onLoggedIn: (username: string) => void;
-}
+const PROVIDERS: { id: SocialProvider; label: string; icon: ReactNode }[] = [
+  {
+    id: 'kakao',
+    label: '카카오로 계속하기',
+    icon: (
+      <path
+        fill="#191919"
+        d="M12 3C6.48 3 2 6.58 2 11c0 2.86 1.87 5.37 4.68 6.78l-.95 3.5a.4.4 0 0 0 .61.43L10.5 19.1c.5.06 1 .1 1.5.1 5.52 0 10-3.58 10-8S17.52 3 12 3z"
+      />
+    ),
+  },
+  {
+    id: 'google',
+    label: 'Google로 계속하기',
+    icon: (
+      <>
+        <path fill="#4285F4" d="M22.5 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h5.9a5.04 5.04 0 0 1-2.19 3.31v2.75h3.54c2.07-1.91 3.25-4.72 3.25-8.3z" />
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.54-2.75c-.98.66-2.23 1.06-3.74 1.06-2.87 0-5.3-1.94-6.17-4.55H2.17v2.84A11 11 0 0 0 12 23z" />
+        <path fill="#FBBC05" d="M5.83 14.1A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.44.34-2.1V7.06H2.17A11 11 0 0 0 1 12c0 1.78.43 3.46 1.17 4.94l3.66-2.84z" />
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.17 7.06l3.66 2.84C6.7 7.32 9.13 5.38 12 5.38z" />
+      </>
+    ),
+  },
+  {
+    id: 'github',
+    label: 'GitHub로 계속하기',
+    icon: (
+      <path
+        fill="currentColor"
+        d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"
+      />
+    ),
+  },
+];
 
-type Mode = 'login' | 'register' | 'reset';
-
-export function AuthPanel({ onLoggedIn }: AuthPanelProps) {
-  const [mode, setMode] = useState<Mode>('login');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+export function AuthPanel() {
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const isRegister = mode === 'register';
-  const isReset = mode === 'reset';
-  // 서버에 보내기 전에 입력 즉시 알려 준다. 실제 강제는 서버가 한다.
-  const passwordTooShort = isRegister && password.length > 0 && password.length < 8;
-  const confirmMismatch = isRegister && confirm.length > 0 && confirm !== password;
-  const filled = isReset
-    ? email.length > 0
-    : email.length > 0 && password.length > 0 && (!isRegister || (username.length > 0 && confirm.length > 0));
-  const canSubmit = filled && !passwordTooShort && !confirmMismatch && !busy;
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    setError('');
-    setNotice('');
-    setConfirm('');
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setNotice('');
-    setBusy(true);
-    try {
-      if (isReset) {
-        await requestPasswordReset(email);
-        setNotice('재설정 메일을 보냈습니다. 메일의 링크를 누르면 새 비밀번호를 정할 수 있습니다.');
-        return;
-      }
-      if (isRegister) await register(username, email, password);
-      onLoggedIn(await login(email, password));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '요청에 실패했습니다');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSocial(provider: 'google' | 'github') {
+  async function handleSocial(provider: SocialProvider) {
     setError('');
     setBusy(true);
     try {
@@ -66,138 +52,29 @@ export function AuthPanel({ onLoggedIn }: AuthPanelProps) {
   }
 
   return (
-    <form className="auth-panel" onSubmit={handleSubmit}>
-      <div className="auth-tabs">
-        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>
-          로그인
-        </button>
-        <button type="button" className={isRegister ? 'active' : ''} onClick={() => switchMode('register')}>
-          회원가입
-        </button>
+    <div className="auth-panel">
+      <div className="social-login">
+        {PROVIDERS.map((p) => (
+          <button key={p.id} type="button" className={`social-${p.id}`} onClick={() => handleSocial(p.id)} disabled={busy}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              {p.icon}
+            </svg>
+            {p.label}
+          </button>
+        ))}
       </div>
 
-      {isRegister && (
-        <input
-          type="text"
-          placeholder="아이디 (팀원·심사위원에게 보이는 이름)"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          required
-        />
-      )}
-      <input
-        type={mode === 'login' ? 'text' : 'email'}
-        placeholder={mode === 'login' ? '아이디 또는 이메일' : '이메일'}
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoComplete={mode === 'login' ? 'username' : 'email'}
-        required
-      />
-      {!isReset && (
-        <input
-          type="password"
-          placeholder={isRegister ? '비밀번호 (8자 이상)' : '비밀번호'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={isRegister ? 'new-password' : 'current-password'}
-          minLength={8}
-          required
-        />
-      )}
-      {passwordTooShort && <p className="field-note">비밀번호는 8자 이상이어야 합니다</p>}
-      {isRegister && (
-        <input
-          type="password"
-          placeholder="비밀번호 확인"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          autoComplete="new-password"
-          required
-        />
-      )}
-      {confirmMismatch && <p className="field-note">비밀번호가 일치하지 않습니다</p>}
-
       {error && <p className="form-error">{error}</p>}
-      {notice && <p className="field-note">{notice}</p>}
 
-      <button type="submit" disabled={!canSubmit}>
-        {busy ? '확인 중…' : isReset ? '재설정 메일 보내기' : isRegister ? '가입하고 시작하기' : '로그인'}
-      </button>
-
-      {!isReset && (
-        <div className="social-login">
-          <button type="button" onClick={() => handleSocial('google')} disabled={busy}>
-            Google로 계속하기
-          </button>
-          <button type="button" onClick={() => handleSocial('github')} disabled={busy}>
-            GitHub로 계속하기
-          </button>
-        </div>
-      )}
-
-      {!isReset && (
-        <p className="auth-footnote">
-          가입하거나 소셜 계정으로 계속하면 <a href="/terms.html">이용약관</a>과{' '}
-          <a href="/privacy.html">개인정보처리방침</a>에 동의하는 것으로 봅니다. 만 14세 이상만 가입할 수
-          있습니다.
-        </p>
-      )}
-
-      {mode === 'login' && (
-        <button type="button" className="link-btn" onClick={() => switchMode('reset')}>
-          비밀번호를 잊으셨나요?
-        </button>
-      )}
-      {isReset && (
-        <button type="button" className="link-btn" onClick={() => switchMode('login')}>
-          로그인으로 돌아가기
-        </button>
-      )}
-
+      <p className="auth-footnote">
+        처음이면 자동으로 가입됩니다. 계속하면 <a href="/terms.html">이용약관</a>과{' '}
+        <a href="/privacy.html">개인정보처리방침</a>에 동의하는 것으로 봅니다. 만 14세 이상만 가입할 수
+        있습니다.
+      </p>
       <p className="auth-footnote">
         가입한 계정은 참가자이고, 심사위원은 운영자가 배정하며 운영자 권한은 관리자가 부여합니다.
         대회 목록과 스코어보드는 로그인 없이 볼 수 있습니다.
       </p>
-    </form>
-  );
-}
-
-/** 재설정 메일의 링크로 돌아왔을 때 새 비밀번호를 정한다. */
-export function NewPasswordPanel({ onDone }: { onDone: (username: string) => void }) {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      onDone(await setNewPassword(password));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '비밀번호를 바꾸지 못했습니다');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="auth-panel" onSubmit={handleSubmit}>
-      <p className="field-note">새 비밀번호를 정해 주세요.</p>
-      <input
-        type="password"
-        placeholder="새 비밀번호 (8자 이상)"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="new-password"
-        minLength={8}
-        required
-      />
-      {error && <p className="form-error">{error}</p>}
-      <button type="submit" disabled={busy || password.length < 8}>
-        {busy ? '저장 중…' : '비밀번호 저장'}
-      </button>
-    </form>
+    </div>
   );
 }
