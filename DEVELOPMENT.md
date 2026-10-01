@@ -487,7 +487,7 @@ fixture가 겹쳐 실패하는데, `db reset` 대신 각 파일을 트랜잭션 
 ```bash
 { echo "begin; delete from public.contests; delete from auth.users;"; \
   sed -e '/^begin;$/d' -e '/^rollback;$/d' supabase/tests/05_lock_after_close.test.sql; echo "rollback;"; } \
-  | docker exec -i supabase_db_hackman-sju psql -U postgres -X -q -At
+  | docker exec -i supabase_db_hackman psql -U postgres -X -q -At
 ```
 
 **새 DB의 API 권한 확인(2026-10-30 Supabase 기본값 변경 대비):** 지금 로컬 DB는 옛 기본값이라
@@ -570,6 +570,29 @@ netsh int ipv4 show excludedportrange protocol=tcp
 
 ## 10. 남은 일
 
+- **로그인 방식 = 소셜 전용 (2026-10-01):** 이메일·비밀번호 가입/로그인/재설정 UI와 API 코드는
+  삭제(`AuthPanel.tsx`는 Google·GitHub·카카오 버튼만). 이유: 인증 메일을 보낼 SMTP가 Resend 테스트
+  주소(`onboarding@resend.dev`)라 본인 외 주소로 발송이 안 됨. 운영 반영 완료: 마이그레이션
+  `20260929000000`·`20260929010000`(`migration list`로 로컬·원격 7개 일치), Google·GitHub·카카오
+  provider와 Site URL·Redirect URL. 로그인 3종 동작 확인.
+  - **카카오는 커스텀 OIDC provider `custom:kakao`로 연결한다.** 기본 `kakao` provider는
+    `account_email`을 항상 요청하는데 이 항목은 비즈 앱(사업자 등록)에서만 열려서
+    "설정하지 않은 동의 항목" 오류가 난다("Allow users without an email"을 켜도 동일). 커스텀
+    provider는 스코프 `openid profile_nickname profile_image`, Issuer `https://kauth.kakao.com`,
+    카카오 쪽 OpenID Connect 활성화 + REST API 키 편집 화면의 로그인 Redirect URI에
+    `https://<프로젝트 ref>.supabase.co/auth/v1/callback` 등록(로그아웃 Redirect URI와 다른 칸).
+    Client Secret이 틀리면 `invalid_client / Bad client credentials`(Auth Logs 500 `/callback`).
+    카카오 가입자는 이메일이 없어 같은 이메일로 계정이 합쳐지지 않는다(사용자 이름은 `user_xxxx`).
+    무료 플랜은 커스텀 provider 3개까지.
+  - **남은 일 (우선순위순):**
+    1. Supabase → Authentication → Sign In / Providers에서 **Email provider 끄기**(API 직접 가입 차단).
+    2. 위 "Django 테이블 백업 후 drop" — 옛 계정 이메일·해시가 운영 DB에 남아 있음.
+    3. 쓰지 않는 Edge Function `login`(`supabase/functions/login`)을 코드와 운영에서 제거.
+    4. 카카오 가입자 사용자 이름을 닉네임으로 (`handle_new_user` 트리거 수정, 마이그레이션 추가). 선택.
+    5. 계정 삭제 정책 문서화: 구현은 `auth.users` CASCADE 삭제이고 채점한 심사위원은 탈퇴가
+       거절된다(위 "탈퇴 시 데이터 처리"의 익명화 결정과 다름). 이 방식으로 확정할지 결정.
+    6. Resend 도메인(`hackman.kr`) 인증은 이메일 로그인을 되살릴 때만 필요.
+    iOS OAuth 복귀(`capacitor://`) 처리는 안드로이드만 출시하므로 보류.
 - **롤백 창 종료 처리 (예정보다 앞당김, 2026-09-19):** `backend/` 디렉터리 제거 완료.
   Render 서비스 삭제 완료(2026-09-23). 남은 것 — Django 테이블 백업 후 drop(데이터 이전
   완전 검증 후 진행 — 아직 미실행). 운영 DB의 `auth_user` 등에 옛 계정의 이메일·비밀번호
@@ -639,15 +662,16 @@ netsh int ipv4 show excludedportrange protocol=tcp
       `PRODUCT_BUNDLE_IDENTIFIER`(현재 임시값 `com.example.hackman`) 교체, Vercel 도메인 연결,
       Supabase Auth Site URL 교체, 안드로이드 TWA 생성(아래)
   - 앱 안에 만들 것 (없으면 두 스토어 모두 거절 사유)
-    - [ ] 계정 삭제: 계정 메뉴 버튼 + 로그인 없이 요청하는 웹 페이지 (반나절~1일,
-      Apple 5.1.1(v), [Play 요건](https://support.google.com/googleplay/android-developer/answer/13327111))
-    - [ ] 개인정보처리방침 페이지 + 앱 안 링크. 처리 위탁·국외 이전(Supabase, Vercel,
-      Resend, LLM 제공사) 포함 (2~3시간, Apple 5.1.1(i))
+    - [x] 계정 삭제: 계정 메뉴 버튼(RPC `delete_my_account`) + 로그인 없이 요청하는 안내 페이지
+      `/delete-account.html`(이메일 요청, 7일 이내 처리) (2026-10-01, Apple 5.1.1(v),
+      [Play 요건](https://support.google.com/googleplay/android-developer/answer/13327111))
+    - [x] 개인정보처리방침 페이지 + 앱 안 링크 `/privacy.html`. 처리 위탁·국외 이전(Supabase, Vercel,
+      Resend, LLM 제공사) 포함 (2026-09-29, Apple 5.1.1(i))
     - [ ] 신고·차단·연락처 공개 — 팀 이름·제출물·프로필이 남에게 보이는 콘텐츠라서
       (약 1일, Apple 1.2)
     - [ ] 심사용 데모 계정 + 샘플 대회, 운영 환경에 (1시간, Apple 2.1(a))
-    - [ ] Supabase Auth Site URL·Redirect URLs를 운영 도메인으로 (30분)
-    - [ ] 이용약관 페이지 (권장, 1시간)
+    - [x] Supabase Auth Site URL·Redirect URLs를 운영 도메인(hackman.kr)으로 (2026-10-01)
+    - [x] 이용약관 페이지 `/terms.html` (2026-09-29)
   - 안드로이드 (Google Play) — TWA는 웹 주소를 그대로 띄우므로 **도메인 확정 + 새 도메인에
     PWA 배포**가 끝나야 만들 수 있다. 이 PC에는 JDK·Android SDK가 없다(2026-09-24 확인).
     - [ ] Play Console 개인 계정: 25달러 1회, 신원 확인, Android 10+ 실기기 인증
