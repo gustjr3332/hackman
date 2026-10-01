@@ -128,12 +128,7 @@ export type SocialProvider = 'google' | 'github' | 'kakao';
 
 export async function signInWithProvider(provider: SocialProvider): Promise<void> {
   sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
-  // 카카오는 기본 provider 가 비즈 앱 전용 account_email 을 항상 요청해서, 이메일 없이 쓰는
-  // 커스텀 OIDC provider(custom:kakao)로 로그인한다. 스코프는 대시보드에서 정한다.
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: provider === 'kakao' ? ('custom:kakao' as 'github') : provider,
-    options: { redirectTo: SITE_URL },
-  });
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: SITE_URL } });
   if (error) {
     sessionStorage.removeItem(OAUTH_PENDING_KEY);
     throw new ApiError(error.message);
