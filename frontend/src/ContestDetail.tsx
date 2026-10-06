@@ -57,6 +57,7 @@ interface ContestDetailProps {
   contest: Contest;
   username: string | null;
   isOrganizer: boolean;
+  isAdmin: boolean;
   onBack: () => void;
   onContestUpdated: (contest: Contest) => void;
   onDeleted: (slug: string) => void;
@@ -66,6 +67,7 @@ export function ContestDetail({
   contest,
   username,
   isOrganizer,
+  isAdmin,
   onBack,
   onContestUpdated,
   onDeleted,
@@ -342,7 +344,7 @@ export function ContestDetail({
         />
       )}
 
-      {isOrganizer && <DangerZone contest={contest} onDeleted={onDeleted} />}
+      {isAdmin && <DangerZone contest={contest} onDeleted={onDeleted} />}
     </section>
   );
 }

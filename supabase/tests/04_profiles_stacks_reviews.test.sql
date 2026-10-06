@@ -58,6 +58,7 @@ reset role;
 -- ---- 심사 보조 분석 공개 범위
 insert into public.contests (slug, name, start_at, end_at) values
   ('c1', '대회', now(), now() + interval '1 day'), ('c2', '다른 대회', now(), now() + interval '1 day');
+update public.contests set created_by = (select id from public.profiles where username = 'org');
 insert into public.teams (contest_slug, name) values ('c1', '알파');
 insert into public.submissions (team_id, title) select id, '제출물' from public.teams where name = '알파';
 insert into public.judges (contest_slug, user_id) values

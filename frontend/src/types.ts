@@ -12,6 +12,8 @@ export interface Contest {
   team_count: number;
   /** 요청한 사용자가 이 대회의 심사위원인지 (서버 판단, 폴링으로 갱신). */
   is_judge: boolean;
+  /** 요청한 사용자가 이 대회를 운영할 수 있는지 (관리자이거나 만든 운영자). */
+  can_manage: boolean;
   /** 팀이 따로 정하지 않았을 때 쓰는 기본 발표 시간(분). */
   presentation_minutes: number;
 }
@@ -76,6 +78,7 @@ export interface Judge {
 export interface Me {
   username: string;
   is_staff: boolean;
+  is_admin: boolean;
 }
 
 export interface Score {

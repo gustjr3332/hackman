@@ -4,10 +4,12 @@ import {
   deleteMyAccount,
   fetchContests,
   fetchMe,
+  fetchOrganizers,
   getStoredUsername,
   logout,
   onOAuthSignedIn,
   onStoredUsernameChange,
+  setOrganizer,
   storeUsername,
 } from './api';
 import { AuthPanel } from './AuthPanel';
@@ -30,6 +32,7 @@ export default function App() {
   const [status, setStatus] = useState('불러오는 중…');
   const [username, setUsername] = useState<string | null>(getStoredUsername());
   const [isOrganizer, setIsOrganizer] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   // 로그인 폼은 기본으로 접혀 있다. 대회는 로그인 없이도 다 둘러볼 수 있어서 헤더의
   // "로그인" 버튼을 눌렀을 때만 편다.
@@ -92,6 +95,7 @@ export default function App() {
   useEffect(() => {
     if (!username) {
       setIsOrganizer(false);
+      setIsAdmin(false);
       setShowCreateForm(false);
       return;
     }
@@ -99,7 +103,8 @@ export default function App() {
     fetchMe()
       .then((me) => {
         if (cancelled) return;
-        setIsOrganizer(me.is_staff);
+        setIsOrganizer(me.is_staff || me.is_admin);
+        setIsAdmin(me.is_admin);
         // 로그인 폼에 친 문자열 대신 서버가 아는 정식 아이디를 쓴다. "내 팀" 판단 등이 모두
         // 이 값과 비교하므로, 앞뒤 공백처럼 어긋나면 내 팀·채점 패널이 조용히 숨겨진다.
         if (me.username !== username) {
@@ -108,7 +113,9 @@ export default function App() {
         }
       })
       .catch(() => {
-        if (!cancelled) setIsOrganizer(false);
+        if (cancelled) return;
+        setIsOrganizer(false);
+        setIsAdmin(false);
       });
     return () => {
       cancelled = true;
@@ -274,7 +281,7 @@ export default function App() {
               </span>
               <span className="auth-identity">
                 <span className="auth-name">{username}</span>
-                <span className="auth-role">{isOrganizer ? '운영자' : '참가자'}</span>
+                <span className="auth-role">{isAdmin ? '관리자' : isOrganizer ? '운영자' : '참가자'}</span>
               </span>
               <button type="button" onClick={handleLogout}>
                 로그아웃
@@ -282,7 +289,12 @@ export default function App() {
             </div>
           )}
           {username && (
-            <AccountMenu username={username} isOrganizer={isOrganizer} onLogout={handleLogout} />
+            <AccountMenu
+              username={username}
+              isOrganizer={isOrganizer}
+              isAdmin={isAdmin}
+              onLogout={handleLogout}
+            />
           )}
         </div>
       </header>
@@ -298,14 +310,15 @@ export default function App() {
         {!username && showAuth && <AuthPanel />}
 
         {selected && route.name === 'gallery' ? (
-          <Gallery contest={selected} isOrganizer={isOrganizer} />
+          <Gallery contest={selected} isOrganizer={selected.can_manage} />
         ) : selected && route.name === 'project' ? (
           <ProjectDetail contest={selected} teamId={route.teamId} />
         ) : selected ? (
           <ContestDetail
             contest={selected}
             username={username}
-            isOrganizer={isOrganizer}
+            isOrganizer={selected.can_manage}
+            isAdmin={isAdmin}
             onBack={() => navigate(paths.list())}
             onContestUpdated={handleContestUpdated}
             onDeleted={handleContestDeleted}
@@ -338,6 +351,7 @@ export default function App() {
                 onCancel={() => setShowCreateForm(false)}
               />
             )}
+            {isAdmin && <OrganizerAdmin />}
 
             <div className="list-tools">
               <input
@@ -418,14 +432,76 @@ export default function App() {
 interface AccountMenuProps {
   username: string;
   isOrganizer: boolean;
+  isAdmin: boolean;
   onLogout: () => void;
+}
+
+/** 관리자 전용: 운영자(대회 생성 권한) 목록 확인과 지정·해제. */
+function OrganizerAdmin() {
+  const [organizers, setOrganizers] = useState<string[]>([]);
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+  const [failed, setFailed] = useState(false);
+  const report = (text: string, isError: boolean) => {
+    setMessage(text);
+    setFailed(isError);
+  };
+
+  const load = useCallback(() => {
+    fetchOrganizers()
+      .then(setOrganizers)
+      .catch((err: Error) => report(err.message, true));
+  }, []);
+
+  useEffect(load, [load]);
+
+  async function change(username: string, value: boolean) {
+    try {
+      await setOrganizer(username, value);
+      report(`${username}: ${value ? '운영자로 지정했습니다.' : '운영자를 해제했습니다.'}`, false);
+      if (value) setName('');
+      load();
+    } catch (err) {
+      report(err instanceof Error ? err.message : '처리에 실패했습니다', true);
+    }
+  }
+
+  return (
+    <section className="contest-form">
+      <h3 className="section-heading">운영자 관리</h3>
+      <ul>
+        {organizers.map((u) => (
+          <li key={u}>
+            {u}{' '}
+            <button type="button" className="link-btn" onClick={() => change(u, false)}>
+              해제
+            </button>
+          </li>
+        ))}
+        {organizers.length === 0 && <li>지정된 운영자가 없습니다.</li>}
+      </ul>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) change(name.trim(), true);
+        }}
+      >
+        <label className="field">
+          아이디
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <button type="submit">운영자 지정</button>
+      </form>
+      {message && <p className={failed ? 'form-error' : 'field-note'}>{message}</p>}
+    </section>
+  );
 }
 
 /**
  * 좁은 화면 전용 계정 메뉴. 헤더 한 줄에 이름·역할·로그아웃까지 넣으면 390px를 넘어서
  * 아바타 하나만 두고 나머지는 눌렀을 때 펼친다. 넓은 화면에서는 CSS 로 숨고 .auth-status 가 보인다.
  */
-function AccountMenu({ username, isOrganizer, onLogout }: AccountMenuProps) {
+function AccountMenu({ username, isOrganizer, isAdmin, onLogout }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -460,7 +536,7 @@ function AccountMenu({ username, isOrganizer, onLogout }: AccountMenuProps) {
       {open && (
         <div className="account-popover">
           <span className="auth-name">{username}</span>
-          <span className="auth-role">{isOrganizer ? '운영자' : '참가자'}</span>
+          <span className="auth-role">{isAdmin ? '관리자' : isOrganizer ? '운영자' : '참가자'}</span>
           <button type="button" onClick={onLogout}>
             로그아웃
           </button>

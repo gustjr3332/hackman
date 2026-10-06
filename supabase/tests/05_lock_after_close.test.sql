@@ -10,6 +10,7 @@ insert into auth.users (id, email, raw_user_meta_data, aud, role) values
 update public.profiles set is_staff = true where username = 'org';
 insert into public.contests (slug, name, start_at, end_at)
 values ('c1', '교내 해커톤', now(), now() + interval '1 day');
+update public.contests set created_by = (select id from public.profiles where username = 'org');
 
 -- alice 가 팀 둘을 만들고 제출한다. 임시 팀은 모집중에 지워 본다.
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d","role":"authenticated"}', true);
@@ -65,7 +66,10 @@ select results_eq($$ select team_name, rank from public.scoreboard('c1') where r
 -- 대회째 지우는 것은 여전히 된다(채점한 심사위원이 있어도).
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
-select lives_ok($$ delete from public.contests where slug = 'c1' $$, '운영자는 점수가 있는 종료 대회도 지울 수 있다');
+reset role;
+update public.profiles set is_admin = true where username = 'org';  -- 대회 삭제는 관리자만
+set local role authenticated;
+select lives_ok($$ delete from public.contests where slug = 'c1' $$, '관리자는 점수가 있는 종료 대회도 지울 수 있다');
 reset role;
 select is((select count(*)::int from public.teams), 0, '팀도 지워진다');
 select is((select count(*)::int from public.judges), 0, '심사위원 배정도 지워진다');

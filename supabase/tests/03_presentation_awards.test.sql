@@ -9,6 +9,7 @@ insert into auth.users (id, email, raw_user_meta_data, aud, role) values
 update public.profiles set is_staff = true where username = 'org';
 insert into public.contests (slug, name, start_at, end_at, presentation_minutes)
 values ('c1', '교내 해커톤', now(), now() + interval '1 day', 7);
+update public.contests set created_by = (select id from public.profiles where username = 'org');
 insert into public.teams (contest_slug, name) values ('c1', '가'), ('c1', '나'), ('c1', '다');
 -- 제출 시각: 나 → 가, 다는 미제출
 insert into public.submissions (team_id, title, submitted_at) select id, '나', now() - interval '2 hour' from public.teams where name = '나';

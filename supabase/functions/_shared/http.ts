@@ -26,6 +26,15 @@ export interface Caller {
   id: string;
   username: string;
   isStaff: boolean;
+  isAdmin: boolean;
+}
+
+/** 관리자, 또는 이 대회를 만든 운영자인가 (DB 의 can_manage 와 같은 규칙). */
+export async function canManage(me: Caller, slug: string): Promise<boolean> {
+  if (me.isAdmin) return true;
+  if (!me.isStaff) return false;
+  const { data } = await admin.from('contests').select('created_by').eq('slug', slug).maybeSingle();
+  return data?.created_by === me.id;
 }
 
 /** Authorization 헤더의 사용자. anon 키만 온 경우(비로그인)는 null. */
@@ -34,8 +43,8 @@ export async function caller(req: Request): Promise<Caller | null> {
   if (!token) return null;
   const { data } = await admin.auth.getUser(token);
   if (!data.user) return null;
-  const { data: p } = await admin.from('profiles').select('username, is_staff').eq('id', data.user.id).single();
-  return p ? { id: data.user.id, username: p.username, isStaff: p.is_staff } : null;
+  const { data: p } = await admin.from('profiles').select('username, is_staff, is_admin').eq('id', data.user.id).single();
+  return p ? { id: data.user.id, username: p.username, isStaff: p.is_staff, isAdmin: p.is_admin } : null;
 }
 
 /** OPTIONS 는 CORS 로 끝내고, 나머지는 로그인한 사용자만 handler 로 넘긴다. */

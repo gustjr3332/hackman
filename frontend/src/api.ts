@@ -168,7 +168,16 @@ export async function deleteMyAccount(): Promise<void> {
 export async function fetchMe(): Promise<Me> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw new ApiError('로그인이 필요합니다.');
-  return must(supabase.from('profiles').select('username, is_staff').eq('id', data.user.id).single());
+  return must(supabase.from('profiles').select('username, is_staff, is_admin').eq('id', data.user.id).single());
+}
+
+export async function setOrganizer(username: string, value: boolean): Promise<void> {
+  await must(supabase.rpc('set_organizer', { p_username: username, p_value: value }));
+}
+
+export async function fetchOrganizers(): Promise<string[]> {
+  const rows = await must(supabase.from('profiles').select('username').eq('is_staff', true).order('username'));
+  return rows.map((r) => r.username);
 }
 
 // ---------- 실시간 ----------

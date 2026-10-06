@@ -9,7 +9,7 @@
 // 각자 제한 시간을 갖게 한다.
 // deno-lint-ignore-file no-explicit-any
 import { decodeContent, GithubError, githubGet, quotePath } from '../_shared/github.ts';
-import { admin, fail, json, serveAuthed } from '../_shared/http.ts';
+import { admin, canManage, fail, json, serveAuthed } from '../_shared/http.ts';
 import { availableModels, complete, PROVIDERS } from '../_shared/llm.ts';
 import { byPriority, cleanFindings, isSource, parseGithubRepo, parseJsonObject } from '../_shared/logic.ts';
 
@@ -152,7 +152,7 @@ async function pending(submissionId: number, provider: string, model: string) {
 }
 
 serveAuthed(async (req, me) => {
-  if (!me.isStaff) return fail(403, '운영자만 분석을 실행할 수 있습니다.');
+  if (!me.isStaff && !me.isAdmin) return fail(403, '운영자만 분석을 실행할 수 있습니다.');
   const body = await req.json().catch(() => ({}));
   const provider = body.provider || availableModels()[0]?.provider;
   if (!provider) return fail(400, '설정된 LLM API 키가 없습니다.');
@@ -161,12 +161,15 @@ serveAuthed(async (req, me) => {
   if (body.submission_id) {
     const { data: sub } = await admin.from('submissions').select('*').eq('id', body.submission_id).maybeSingle();
     if (!sub) return fail(404, '제출물을 찾을 수 없습니다.');
+    const { data: team } = await admin.from('teams').select('contest_slug').eq('id', sub.team_id).single();
+    if (!(await canManage(me, team.contest_slug))) return fail(403, '이 대회를 개설한 운영자나 관리자만 분석할 수 있습니다.');
     const review = await pending(sub.id, provider, model);
     EdgeRuntime.waitUntil(analyze(review, sub));
     return json(review, 202);
   }
 
   if (body.contest) {
+    if (!(await canManage(me, body.contest))) return fail(403, '이 대회를 개설한 운영자나 관리자만 분석할 수 있습니다.');
     const { data: subs } = await admin.from('submissions').select('id, teams!inner(contest_slug)')
       .eq('teams.contest_slug', body.contest).neq('repo_url', '');
     if (!subs?.length) return fail(400, '분석할 저장소가 등록된 제출물이 없습니다.');

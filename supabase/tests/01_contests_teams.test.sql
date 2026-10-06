@@ -10,6 +10,7 @@ insert into auth.users (id, email, raw_user_meta_data, aud, role) values
 update public.profiles set is_staff = true where username = 'org';
 insert into public.contests (slug, name, start_at, end_at)
 values ('c1', '교내 해커톤', now(), now() + interval '1 day'), ('c2', '다른 대회', now(), now() + interval '1 day');
+update public.contests set created_by = (select id from public.profiles where username = 'org');
 
 -- ---- 비로그인
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -96,7 +97,10 @@ reset role;
 -- ---- 대회 삭제
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
-select lives_ok($$ delete from public.contests where slug = 'c1' $$, '운영자는 대회를 지울 수 있다');
+reset role;
+update public.profiles set is_admin = true where username = 'org';  -- 대회 삭제는 관리자만
+set local role authenticated;
+select lives_ok($$ delete from public.contests where slug = 'c1' $$, '관리자는 대회를 지울 수 있다');
 reset role;
 select is((select count(*)::int from public.teams), 0, '대회를 지우면 팀·제출물까지 함께 지워진다');
 select is((select count(*)::int from public.contests where slug = 'c2'), 1, '다른 대회는 남는다');

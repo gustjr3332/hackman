@@ -13,6 +13,7 @@ update public.profiles set is_staff = true where username = 'org';
 insert into public.contests (slug, name, start_at, end_at, status)
 values ('c1', '교내 해커톤', now(), now() + interval '1 day', 'recruiting'),
        ('c2', '다른 대회', now(), now() + interval '1 day', 'judging');
+update public.contests set created_by = (select id from public.profiles where username = 'org');
 insert into public.teams (contest_slug, name) values ('c1', '알파'), ('c1', '베타'), ('c1', '감마'), ('c1', '델타');
 insert into public.submissions (team_id, title) select id, name || ' 제출물' from public.teams where name <> '델타';
 update public.contests set status = 'ongoing' where slug = 'c1';
