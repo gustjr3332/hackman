@@ -10,7 +10,6 @@ interface TeamRecommendationsProps {
    * 프로필이 바뀔 때마다 올라가는 값. 추천은 프로필을 기준으로 계산되므로, 바로 위에서
    * 태그를 고치거나 자동 정리를 돌렸는데 아래 순위가 그대로면 고장으로 보인다.
    */
-  profileVersion: number;
 }
 
 /**
@@ -23,7 +22,6 @@ interface TeamRecommendationsProps {
 export function TeamRecommendations({
   contestSlug,
   onJoined,
-  profileVersion,
 }: TeamRecommendationsProps) {
   const [teams, setTeams] = useState<TeamRecommendation[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -33,8 +31,7 @@ export function TeamRecommendations({
     fetchRecommendedTeams(contestSlug)
       .then(({ teams: list }) => setTeams(list))
       .catch(() => setTeams([]));
-    // profileVersion 은 값을 쓰지는 않고 프로필이 바뀌면 다시 부르기 위한 의존성이다.
-  }, [contestSlug, profileVersion]);
+  }, [contestSlug]);
 
   useEffect(load, [load]);
 

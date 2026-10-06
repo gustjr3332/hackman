@@ -393,6 +393,23 @@ body {
   color: var(--ink);
 }
 
+/* 아바타+이름을 누르면 내 프로필 설정이 열린다. 겉모양은 버튼 아닌 기존 표시 그대로. */
+.auth-status .profile-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.account-popover .profile-link {
+  color: var(--ink);
+}
+
 /* 연결이 끊겼을 때 헤더 바로 밑에 뜨는 안내. 상태 표시 규칙대로 왼쪽 컬러 레일. */
 .offline-banner {
   margin: 0;

@@ -17,6 +17,7 @@ import { ContestDetail } from './ContestDetail';
 import { ContestForm } from './ContestForm';
 import { Gallery } from './Gallery';
 import { STATUS_LABEL, STATUS_ORDER } from './labels';
+import { ProfilePanel } from './ProfilePanel';
 import { ProjectDetail } from './ProjectDetail';
 import { navigate, paths, useRoute } from './router';
 import { ThemeToggle } from './ThemeToggle';
@@ -37,6 +38,7 @@ export default function App() {
   // 로그인 폼은 기본으로 접혀 있다. 대회는 로그인 없이도 다 둘러볼 수 있어서 헤더의
   // "로그인" 버튼을 눌렀을 때만 편다.
   const [showAuth, setShowAuth] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
 
   // 상세 화면은 항상 최신 목록의 대회 객체를 본다 (상태 전이 후에도 동기화 유지).
@@ -276,13 +278,15 @@ export default function App() {
           {username && (
             <div className="auth-status">
               {/* 이니셜 아바타 + 이름/역할 2줄 (docs/REFERENCE.md 헤더 규격). */}
-              <span className="avatar" aria-hidden="true">
-                {username.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="auth-identity">
-                <span className="auth-name">{username}</span>
-                <span className="auth-role">{isAdmin ? '관리자' : isOrganizer ? '운영자' : '참가자'}</span>
-              </span>
+              <button type="button" className="profile-open" onClick={() => setShowProfile(true)} aria-label="내 프로필 설정">
+                <span className="avatar" aria-hidden="true">
+                  {username.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="auth-identity">
+                  <span className="auth-name">{username}</span>
+                  <span className="auth-role">{isAdmin ? '관리자' : isOrganizer ? '운영자' : '참가자'}</span>
+                </span>
+              </button>
               <button type="button" onClick={handleLogout}>
                 로그아웃
               </button>
@@ -293,6 +297,7 @@ export default function App() {
               username={username}
               isOrganizer={isOrganizer}
               isAdmin={isAdmin}
+              onProfile={() => setShowProfile(true)}
               onLogout={handleLogout}
             />
           )}
@@ -306,6 +311,15 @@ export default function App() {
       )}
 
       <main className="main-content">
+        {username && showProfile && (
+          <ProfilePanel
+            onSaved={(name) => {
+              if (name && name !== username) setUsername(name);
+            }}
+            onClose={() => setShowProfile(false)}
+          />
+        )}
+
         {/* 대회 목록·상세·스코어보드는 로그인 없이 다 보인다. 로그인 폼은 헤더 버튼으로만 편다. */}
         {!username && showAuth && <AuthPanel />}
 
@@ -433,6 +447,7 @@ interface AccountMenuProps {
   username: string;
   isOrganizer: boolean;
   isAdmin: boolean;
+  onProfile: () => void;
   onLogout: () => void;
 }
 
@@ -501,7 +516,7 @@ function OrganizerAdmin() {
  * 좁은 화면 전용 계정 메뉴. 헤더 한 줄에 이름·역할·로그아웃까지 넣으면 390px를 넘어서
  * 아바타 하나만 두고 나머지는 눌렀을 때 펼친다. 넓은 화면에서는 CSS 로 숨고 .auth-status 가 보인다.
  */
-function AccountMenu({ username, isOrganizer, isAdmin, onLogout }: AccountMenuProps) {
+function AccountMenu({ username, isOrganizer, isAdmin, onProfile, onLogout }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -537,6 +552,16 @@ function AccountMenu({ username, isOrganizer, isAdmin, onLogout }: AccountMenuPr
         <div className="account-popover">
           <span className="auth-name">{username}</span>
           <span className="auth-role">{isAdmin ? '관리자' : isOrganizer ? '운영자' : '참가자'}</span>
+          <button
+            type="button"
+            className="profile-link"
+            onClick={() => {
+              setOpen(false);
+              onProfile();
+            }}
+          >
+            내 프로필 설정
+          </button>
           <button type="button" onClick={onLogout}>
             로그아웃
           </button>

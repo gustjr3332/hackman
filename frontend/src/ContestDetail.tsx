@@ -19,7 +19,6 @@ import { AwardCeremony } from './AwardCeremony';
 import { CountdownTimer } from './CountdownTimer';
 import { ROUND_LABEL, ROUNDS, STATUS_HINT, STATUS_LABEL, STATUS_ORDER } from './labels';
 import { PresentationSchedule } from './PresentationSchedule';
-import { ProfilePanel } from './ProfilePanel';
 import { TeamCandidates } from './TeamCandidates';
 import { TeamRecommendations } from './TeamRecommendations';
 import { navigate, paths } from './router';
@@ -77,7 +76,6 @@ export function ContestDetail({
   const [round, setRound] = useState<ScoreRound>('preliminary');
   const [newTeamName, setNewTeamName] = useState('');
   // 프로필이 바뀔 때마다 올려 추천을 다시 계산하게 한다 (추천은 프로필 기준으로 매겨진다).
-  const [profileVersion, setProfileVersion] = useState(0);
   const [status, setStatus] = useState('');
   const [judges, setJudges] = useState<Judge[]>([]);
   const [myScores, setMyScores] = useState<Score[]>([]);
@@ -257,11 +255,9 @@ export function ContestDetail({
         {/* 팀빌딩은 모집중에만 열린다. 혼자 온 사람이 여기서 팀을 찾는 것이 이 묶음의 목적이다. */}
         {username && canFormTeams(contest.status) && (
           <>
-            <ProfilePanel onChanged={() => setProfileVersion((v) => v + 1)} />
             <TeamRecommendations
               contestSlug={contest.slug}
               onJoined={refreshLive}
-              profileVersion={profileVersion}
             />
             <form className="team-form" onSubmit={handleCreateTeam}>
               <input

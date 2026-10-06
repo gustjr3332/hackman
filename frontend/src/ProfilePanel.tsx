@@ -38,8 +38,9 @@ function toTags(text: string): string[] {
 }
 
 interface ProfilePanelProps {
-  /** 프로필이 저장·정리될 때마다 알린다 — 추천이 이 프로필을 기준으로 계산되기 때문이다. */
-  onChanged: () => void;
+  /** 저장해서 아이디가 바뀌었을 수 있으니 서버가 돌려준 아이디를 알린다. */
+  onSaved: (username: string) => void;
+  onClose: () => void;
 }
 
 /**
@@ -49,7 +50,7 @@ interface ProfilePanelProps {
  * 채워주기만 하고, **결과는 참가자가 그대로 고칠 수 있다** — 모델이 정한 것을 사실로 굳히지
  * 않는다. LLM 키가 하나도 없으면 자동 정리 버튼만 사라지고 나머지는 그대로 쓴다.
  */
-export function ProfilePanel({ onChanged }: ProfilePanelProps) {
+export function ProfilePanel({ onSaved, onClose }: ProfilePanelProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [provider, setProvider] = useState('');
@@ -62,10 +63,11 @@ export function ProfilePanel({ onChanged }: ProfilePanelProps) {
   const [roles, setRoles] = useState<string[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState('');
 
   function apply(next: Profile) {
     setProfile(next);
+    setUsername(next.username);
     setIntro(next.intro);
     setGithubUrl(next.github_url);
     setSkills(next.skills);
@@ -94,6 +96,7 @@ export function ProfilePanel({ onChanged }: ProfilePanelProps) {
     try {
       apply(
         await updateMyProfile({
+          ...(username.trim() !== profile?.username ? { username: username.trim() } : {}),
           intro,
           github_url: githubUrl.trim(),
           skills,
@@ -102,7 +105,7 @@ export function ProfilePanel({ onChanged }: ProfilePanelProps) {
           looking_for_team: profile?.looking_for_team ?? true,
         })
       );
-      onChanged();
+      onSaved(username.trim());
       setStatus('저장했습니다');
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '저장에 실패했습니다');
@@ -119,7 +122,6 @@ export function ProfilePanel({ onChanged }: ProfilePanelProps) {
       await updateMyProfile({ intro });
       const next = await extractMyProfile(provider || undefined);
       apply(next);
-      onChanged();
       setStatus(
         next.extraction_status === 'done'
           ? '자동으로 정리했습니다 — 틀린 부분은 직접 고치세요'
@@ -135,34 +137,29 @@ export function ProfilePanel({ onChanged }: ProfilePanelProps) {
   async function toggleLooking() {
     if (!profile) return;
     apply(await updateMyProfile({ looking_for_team: !profile.looking_for_team }));
-    onChanged();
   }
 
   if (!profile) return null;
 
-  if (!open) {
-    return (
-      <div className="profile-panel collapsed">
-        <button type="button" className="profile-toggle" onClick={() => setOpen(true)}>
-          내 팀빌딩 프로필
-        </button>
-        <span className="empty-hint">
-          {profile.skills.length
-            ? `${profile.skills.slice(0, 3).join(', ')}${profile.skills.length > 3 ? ' 외' : ''}`
-            : '아직 비어 있습니다 — 채우면 맞는 팀을 추천받습니다'}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div className="profile-panel">
       <div className="profile-head">
-        <h3 className="section-heading">내 팀빌딩 프로필</h3>
-        <button type="button" onClick={() => setOpen(false)}>
-          접기
+        <h3 className="section-heading">내 프로필</h3>
+        <button type="button" onClick={onClose}>
+          닫기
         </button>
       </div>
+
+      <label className="profile-field">
+        <span>아이디 (팀원·심사위원에게 보이는 이름)</span>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          maxLength={150}
+          autoComplete="off"
+        />
+      </label>
 
       <label className="profile-field">
         <span>자기소개 (자유롭게)</span>

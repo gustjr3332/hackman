@@ -360,7 +360,7 @@ export async function deleteAward(id: number): Promise<void> {
 // ---------- 팀빌딩 (프로필 + 추천) ----------
 
 // 참가자가 직접 고칠 수 있는 필드. 나머지(추출 상태·운영자 여부 등)는 DB 가 열 권한으로 막는다.
-const PROFILE_EDITABLE = ['intro', 'github_url', 'skills', 'interests', 'roles', 'level', 'looking_for_team'] as const;
+const PROFILE_EDITABLE = ['username', 'intro', 'github_url', 'skills', 'interests', 'roles', 'level', 'looking_for_team'] as const;
 
 export async function fetchMyProfile(): Promise<Profile> {
   const { data } = await supabase.auth.getUser();
@@ -372,7 +372,14 @@ export async function updateMyProfile(data: Partial<Profile>): Promise<Profile> 
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new ApiError('로그인이 필요합니다.');
   const patch = Object.fromEntries(Object.entries(data).filter(([k]) => (PROFILE_EDITABLE as readonly string[]).includes(k)));
-  return must(supabase.from('profiles').update(patch).eq('id', auth.user.id).select('*').single());
+  const { data: row, error } = await supabase.from('profiles').update(patch).eq('id', auth.user.id).select('*').single();
+  if (error?.code === '23505') throw new ApiError('이미 쓰는 아이디입니다.');
+  if (error?.code === '23514' && 'username' in patch && !/기술 스택/.test(error.message)) {
+    throw new ApiError('아이디는 영문·숫자·_ . @ + - 만 쓸 수 있습니다 (150자 이내).');
+  }
+  if (error) throw new ApiError(error.message);
+  if (patch.username) storeUsername(row.username);
+  return row;
 }
 
 /** 자기소개를 LLM 으로 구조화한다. 실패해도 예외가 아니라 extraction_status 'failed' 프로필이 온다. */
