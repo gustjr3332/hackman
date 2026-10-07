@@ -500,12 +500,11 @@ fixture가 겹쳐 실패하는데, `db reset` 대신 각 파일을 트랜잭션 
 ```bash
 { echo "begin; delete from public.contests; delete from auth.users;"; \
   sed -e '/^begin;$/d' -e '/^rollback;$/d' supabase/tests/05_lock_after_close.test.sql; echo "rollback;"; } \
-  | docker exec -i supabase_db_hackman-sju psql -U postgres -X -q -At
+  | docker exec -i supabase_db_hackman psql -U postgres -X -q -At
 ```
 
-지금 `npx supabase test db`는 `network supabase_network_hackman not found`로 실패한다 —
-`config.toml`의 `project_id`는 `hackman`인데 떠 있는 컨테이너는 옛 `hackman-sju` 기준이다. 위
-방식으로 우회했고, 고치려면 `npx supabase stop --project-id hackman-sju` 후 `npx supabase start`.
+로컬 스택은 2026-10-07에 `project_id = "hackman"`으로 다시 띄웠다(`supabase stop --project-id
+hackman-sju` → `supabase start`). 옛 `hackman-sju` 스택의 데이터 볼륨은 지우지 않고 남겨 두었다.
 
 **새 DB의 API 권한 확인(2026-10-30 Supabase 기본값 변경 대비):** 지금 로컬 DB는 옛 기본값이라
 권한이 빠진 마이그레이션도 통과한다. 새 테이블·뷰를 추가했으면 새 기본값에서 한 번 돌려 본다.
@@ -579,6 +578,12 @@ netsh int ipv4 show excludedportrange protocol=tcp
 마지막 `}`까지만 잘라내게 해야 한다(`_shared/logic.ts`의 `parseJsonObject`). (2) 출력 토큰
 상한이 너무 낮아 본문이 잘림 — 저가·추론 모델은 본문 전에 추론에 토큰을 먼저 쓰므로, 상한이
 빠듯하면 본문이 아예 안 나온다(`analyze-submission/index.ts`의 `MAX_OUTPUT_TOKENS` 참고).
+
+### `supabase start`가 `exec format error`로 멈춤
+
+2026-10-07에 gotrue·mailpit 이미지가 깨진 채 받아져 `exec /usr/local/bin/gotrue: exec format
+error`로 `DbSetupError`/`HealthCheckTimeoutError`가 났다. 해당 이미지를 지우고(`docker rmi -f
+<이미지>`) 다시 `npx supabase start`하면 새로 받아 정상 기동한다. `--debug`로 어느 컨테이너인지 본다.
 
 ### db push 전에 꼭 확인할 것
 
