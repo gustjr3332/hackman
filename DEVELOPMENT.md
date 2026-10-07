@@ -11,7 +11,7 @@
 - 프로덕션: https://ugrooqkeyhgldrtdriba.supabase.co (Postgres + Edge Functions)
 - 프론트엔드(범위 밖): https://hackman.kr/
 - 옛 Django 백엔드(`backend/`) 코드는 2026-09-19에 저장소에서 제거했다. Render 서비스도
-  2026-09-23에 삭제 완료. Django 테이블 백업/drop만 아직 남아 있다(10장).
+  2026-09-23에 삭제 완료. Django 테이블도 2026-10-07에 백업 후 drop했다(10장).
 
 ## 목차
 
@@ -57,7 +57,8 @@
 
 - 대회 상태: 모집중(`recruiting`) / 진행중(`ongoing`) / 심사중(`judging`) / 종료(`closed`).
   운영자가 **순서에 관계없이 자유롭게** 전환한다(되돌리기·건너뛰기 모두 허용, 데이터는 그대로 남음).
-- 역할: 운영자(`profiles.is_staff`) / 참가자 / 심사위원(대회별로 배정).
+- 역할: 관리자(`profiles.is_admin`, 운영 DB에서 SQL로만 지정) / 운영자(`profiles.is_staff`, 자기가
+  만든 대회 `contests.created_by`만 관리, 삭제 불가) / 참가자 / 심사위원(대회별로 배정).
 - 채점: 팀의 제출물 1건에 대해 심사위원별로 예선(`preliminary`)/결선(`final`) 라운드 점수·
   코멘트. 같은 심사위원이 같은 라운드에 다시 저장하면 upsert.
 - 스코어보드: 라운드별 평균 점수·심사 수·순위. 동점은 같은 순위를 공유하고 다음 순위는
@@ -100,12 +101,16 @@ REST로 자동 노출한다. **RLS(Row Level Security)를 켜지 않으면 아�
 RLS를 켠 테이블은 기본이 "전부 거부"이고, `create policy`로 구멍을 낸 만큼만 열린다. 예:
 
 ```sql
--- supabase/migrations/20260915000000_schema.sql:356-359
+-- supabase/migrations/20260915000000_schema.sql:356-359 (초기 버전. 아래 주 참고)
 create policy "누구나 조회" on public.contests for select to anon, authenticated using (true);
 create policy "운영자만 생성" on public.contests for insert with check (public.is_organizer());
 create policy "운영자만 수정" on public.contests for update using (public.is_organizer());
 create policy "운영자만 삭제" on public.contests for delete using (public.is_organizer());
 ```
+
+> 2026-10-06 `20261006000000_admin_and_contest_owner.sql`로 대회 수정·삭제와 팀·제출물·심사위원·
+> 점수·시상 정책은 `can_manage(slug)`(관리자 또는 `created_by`가 나인 운영자), 대회 삭제는
+> `is_admin()`만 통과하도록 바뀌었다. 위 코드는 원리를 보이는 초기 버전이다.
 
 `using`은 "이 행을 보여줄지"(select/update/delete 대상 필터), `with check`는 "이 값으로
 쓰는 걸 허용할지"(insert/update 결과 검증) — 이 둘이 다른 이유는 update에서 갈린다: 자기
@@ -125,6 +130,11 @@ language sql stable security definer set search_path = '' as $$
   select exists (select 1 from public.judges where contest_slug = p_slug and user_id = auth.uid())
 $$;
 ```
+
+> 이후 `is_organizer()`는 `is_staff or is_admin`이 되었고, `is_admin()`·`can_manage(slug)`·
+> `contest_of_team()`·`contest_of_submission()`이 추가됐다. `require_organizer()`는 삭제되고
+> RPC는 `require_manager(slug)`를 쓴다. `contest_list` 뷰의 `can_manage` 열로 UI가 대회별 관리
+> 버튼을 보인다. 운영자 지정은 관리자 전용 RPC `set_organizer(p_username, p_value)`.
 
 `is_organizer()`가 `profiles`를 조회하려면 `profiles`의 RLS를 통과해야 하는데, 그 RLS 정책이
 다시 `is_organizer()`를 부르면 무한 재귀다. `security definer`는 이 함수를 **함수 소유자
@@ -480,6 +490,9 @@ select throws_ok($$ select public.assign_judge('c1', 'nobody') $$, 'P0002', '...
 reset role;
 ```
 
+01~08번 전부 통과(149+6건): 01~05 fixture는 `created_by`를 테스트 운영자로 넣고, 대회 삭제
+테스트 둘은 관리자로 실행한다. 07은 관리자·대회 소유 운영자, 08은 아이디 변경.
+
 테스트는 빈 DB를 가정한다. 로컬 DB에 개발용 데이터(같은 아이디의 사용자 등)가 있으면
 fixture가 겹쳐 실패하는데, `db reset` 대신 각 파일을 트랜잭션 안에서 기존 데이터를 지운 뒤
 돌리고 롤백하면 데이터를 보존한 채 확인할 수 있다:
@@ -487,8 +500,12 @@ fixture가 겹쳐 실패하는데, `db reset` 대신 각 파일을 트랜잭션 
 ```bash
 { echo "begin; delete from public.contests; delete from auth.users;"; \
   sed -e '/^begin;$/d' -e '/^rollback;$/d' supabase/tests/05_lock_after_close.test.sql; echo "rollback;"; } \
-  | docker exec -i supabase_db_hackman psql -U postgres -X -q -At
+  | docker exec -i supabase_db_hackman-sju psql -U postgres -X -q -At
 ```
+
+지금 `npx supabase test db`는 `network supabase_network_hackman not found`로 실패한다 —
+`config.toml`의 `project_id`는 `hackman`인데 떠 있는 컨테이너는 옛 `hackman-sju` 기준이다. 위
+방식으로 우회했고, 고치려면 `npx supabase stop --project-id hackman-sju` 후 `npx supabase start`.
 
 **새 DB의 API 권한 확인(2026-10-30 Supabase 기본값 변경 대비):** 지금 로컬 DB는 옛 기본값이라
 권한이 빠진 마이그레이션도 통과한다. 새 테이블·뷰를 추가했으면 새 기본값에서 한 번 돌려 본다.
@@ -586,17 +603,33 @@ netsh int ipv4 show excludedportrange protocol=tcp
     무료 플랜은 커스텀 provider 3개까지.
   - **남은 일 (우선순위순):**
     1. Supabase → Authentication → Sign In / Providers에서 **Email provider 끄기**(API 직접 가입 차단).
-    2. 위 "Django 테이블 백업 후 drop" — 옛 계정 이메일·해시가 운영 DB에 남아 있음.
+    2. ~~Django 테이블 백업 후 drop~~ — 2026-10-07 완료(아래 "롤백 창 종료 처리").
     3. 쓰지 않는 Edge Function `login`(`supabase/functions/login`)을 코드와 운영에서 제거.
     4. 카카오 가입자 사용자 이름을 닉네임으로 (`handle_new_user` 트리거 수정, 마이그레이션 추가). 선택.
     5. 계정 삭제 정책 문서화: 구현은 `auth.users` CASCADE 삭제이고 채점한 심사위원은 탈퇴가
        거절된다(위 "탈퇴 시 데이터 처리"의 익명화 결정과 다름). 이 방식으로 확정할지 결정.
     6. Resend 도메인(`hackman.kr`) 인증은 이메일 로그인을 되살릴 때만 필요.
     iOS OAuth 복귀(`capacitor://`) 처리는 안드로이드만 출시하므로 보류.
+- **운영 반영 완료 (2026-10-06):** 마이그레이션 `20261006000000_admin_and_contest_owner.sql`
+  (관리자·대회별 운영자 소유권)·`20261006010000_profile_username_edit.sql`(아이디 변경), Edge
+  Function `analyze-submission` 배포(`_shared/http.ts`의 `canManage()`로 대회별 소유 확인), 관리자
+  계정 지정 완료. 프로필은 대회 상세에서 헤더(`ProfilePanel.tsx`)로 옮겼고, 아이디 변경은
+  `profiles.username`만 `grant update`.
+  - **남은 일:** 이 마이그레이션 이전에 만든 대회는 `created_by`가 NULL이라 관리자만 관리할 수
+    있다. 운영자에게 넘기려면 `created_by`를 채워야 한다(필요할 때).
+  - **소셜 계정 분리 (결정 2026-10-06):** 카카오(이메일 없음)와 구글·깃허브는 같은 사람이어도
+    별개 계정이 생긴다(Supabase는 이메일이 같을 때만 자동 연결). 테스트 계정으로 쓸 수 있어 그대로
+    두고, 수동 identity 연결은 만들지 않는다.
 - **롤백 창 종료 처리 (예정보다 앞당김, 2026-09-19):** `backend/` 디렉터리 제거 완료.
-  Render 서비스 삭제 완료(2026-09-23). 남은 것 — Django 테이블 백업 후 drop(데이터 이전
-  완전 검증 후 진행 — 아직 미실행). 운영 DB의 `auth_user` 등에 옛 계정의 이메일·비밀번호
-  해시가 남아 있어서, 아래 "계정 삭제" 기능과 개인정보처리방침보다 **먼저** 끝내야 한다.
+  Render 서비스 삭제 완료(2026-09-23). Django 테이블 drop 완료(2026-10-07,
+  `20261007000000_drop_django_tables.sql`, 사용자가 `db push`). 그 전에 운영 public 데이터·스키마를
+  저장소 밖 `~/hackman-backups/2026-10-07_public_data.sql`·`_public_schema.sql`에 백업했다(개인정보
+  포함이라 커밋 금지). 옛 데이터는 계정 1·대회 2(`2026-sju-ai-challenge`, `test-2026`, 둘 다 새
+  `contests`에 있음)·팀 2·점수 4뿐이었다. 로컬 DB의 Django 테이블 11개로 drop을 먼저 시험했다(앱
+  테이블·데이터 영향 없음, 롤백).
+- **법적 문서 소셜 전용 반영 (2026-10-07):** `privacy.html`·`terms.html`·`delete-account.html`에서
+  이메일 가입·비밀번호 문구를 지우고 카카오 수집 항목(닉네임·프로필 사진 주소·계정 식별자, 이메일
+  없음)과 카카오 사용자의 삭제 요청 본인 확인 방법을 추가했다. 시행일 2026-10-07.
 - **운영 반영 완료 (2026-09-25, 사용자가 `db push` 실행, `migration list`로 로컬·원격 5개 일치 확인):** 마이그레이션 2개.
   - `20260924120000_lock_results_after_close.sql`: 팀 삭제는 모집중·진행중만, 점수 삭제는
     심사중만, 점수 있는 대회도 운영자가 삭제 가능. 로컬 적용·pgTAP 129건 통과.
